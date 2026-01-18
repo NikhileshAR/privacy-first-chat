@@ -20,10 +20,10 @@ send_pkt({
     "from": peer_id
 })
 
-sessions = {}            # peer_id -> session key
-pending = {}             # peer_id -> list[str]
+sessions = {}            
+pending = {}             
 handshaking = set()
-chat_history = defaultdict(list)  # peer_id -> list of dicts
+chat_history = defaultdict(list)  
 lock = threading.Lock()
 
 print(f"[+] your peer_id: {peer_id}")
@@ -143,3 +143,4 @@ while True:
 
     except KeyboardInterrupt:
         break
+

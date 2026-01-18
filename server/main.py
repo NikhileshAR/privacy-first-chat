@@ -12,8 +12,9 @@ while True:
     pkt = json.loads(data.decode())
 
     sender = pkt["from"]
-    clients[sender] = addr   # REGISTER or any packet updates address
+    clients[sender] = addr   
 
     target = pkt.get("to")
     if target and target in clients:
         sock.sendto(data, clients[target])
+

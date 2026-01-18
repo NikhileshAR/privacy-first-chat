@@ -1,3 +1,6 @@
+# Privacy-First Chat Client
+# Protocol v0 (experimental)
+
 import socket
 import json
 import threading

@@ -1,6 +1,3 @@
-# Privacy-First Chat Client
-# Protocol v0 (experimental)
-
 import socket
 import json
 import threading
@@ -13,16 +10,16 @@ from crypto import gen_keypair, derive_session, encrypt, decrypt
 
 BUFFER = 65536
 
-# ---- server config (CLI) ----
+# server config (CLI)
 SERVER = ("127.0.0.1", 9999)
 if len(sys.argv) == 3:
     SERVER = (sys.argv[1], int(sys.argv[2]))
 
-# ---- identity ----
+# identity
 peer_id = uuid.uuid4().hex[:12]
 priv, pub = gen_keypair()
 
-# ---- socket ----
+# socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind(("0.0.0.0", 0))
 
@@ -31,13 +28,13 @@ def send_pkt(pkt):
     sock.sendto(json.dumps(pkt).encode(), SERVER)
 
 
-# ---- register (implicit) ----
+# register (implicit)
 send_pkt({
     "type": "REGISTER",
     "from": peer_id
 })
 
-# ---- state ----
+# state
 sessions = {}
 pending = {}
 handshaking = set()
@@ -173,3 +170,4 @@ while True:
 
     except KeyboardInterrupt:
         break
+

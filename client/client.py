@@ -1,33 +1,50 @@
-import socket, json, threading, uuid, time
-from crypto import gen_keypair, derive_session, encrypt, decrypt
+import socket
+import json
+import threading
+import uuid
+import time
+import sys
 from collections import defaultdict
 
-SERVER = ("127.0.0.1", 9999)
+from crypto import gen_keypair, derive_session, encrypt, decrypt
+
 BUFFER = 65536
 
+# ---- server config (CLI) ----
+SERVER = ("127.0.0.1", 9999)
+if len(sys.argv) == 3:
+    SERVER = (sys.argv[1], int(sys.argv[2]))
+
+# ---- identity ----
 peer_id = uuid.uuid4().hex[:12]
 priv, pub = gen_keypair()
 
+# ---- socket ----
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind(("0.0.0.0", 0))
+
 
 def send_pkt(pkt):
     sock.sendto(json.dumps(pkt).encode(), SERVER)
 
-# register
+
+# ---- register (implicit) ----
 send_pkt({
     "type": "REGISTER",
     "from": peer_id
 })
 
-sessions = {}            # peer_id -> session key
-pending = {}             # peer_id -> list[str]
+# ---- state ----
+sessions = {}
+pending = {}
 handshaking = set()
-chat_history = defaultdict(list)  # peer_id -> list of dicts
+chat_history = defaultdict(list)
 lock = threading.Lock()
 
+print(f"[+] connected to server {SERVER[0]}:{SERVER[1]}")
 print(f"[+] your peer_id: {peer_id}")
-print('commands: send PEER_ID "msg", history [PEER_ID], exit')
+print('commands: send PEER_ID "msg", history PEER_ID, exit')
+
 
 def start_handshake(pid):
     if pid in handshaking:
@@ -40,6 +57,7 @@ def start_handshake(pid):
         "pub": pub.hex()
     })
 
+
 def send_message(pid, msg):
     with lock:
         if pid in sessions:
@@ -50,35 +68,42 @@ def send_message(pid, msg):
                 "to": pid,
                 "blob": blob
             })
-
             chat_history[pid].append({
                 "ts": time.time(),
                 "dir": "out",
                 "msg": msg
             })
-
             print("[+] sent")
         else:
             pending.setdefault(pid, []).append(msg)
             start_handshake(pid)
             print("[i] establishing session and sending…")
 
+
 def recv_loop():
     while True:
         try:
             data, _ = sock.recvfrom(BUFFER)
-        except ConnectionResetError:
+        except Exception:
             continue
 
-        pkt = json.loads(data.decode())
-        t = pkt["type"]
-        sender = pkt["from"]
+        try:
+            pkt = json.loads(data.decode())
+        except Exception:
+            continue
+
+        t = pkt.get("type")
+        sender = pkt.get("from")
+
+        if not sender:
+            continue
 
         if t == "HELLO":
             peer_pub = bytes.fromhex(pkt["pub"])
             with lock:
                 if sender not in sessions:
                     sessions[sender] = derive_session(priv, peer_pub)
+
             send_pkt({
                 "type": "HELLO_ACK",
                 "from": peer_id,
@@ -100,15 +125,17 @@ def recv_loop():
 
         elif t == "MSG":
             with lock:
+                if sender not in sessions:
+                    continue
                 msg = decrypt(sessions[sender], bytes.fromhex(pkt["blob"]))
 
             print(f"\n[{sender} → you] {msg}")
-
             chat_history[sender].append({
                 "ts": time.time(),
                 "dir": "in",
                 "msg": msg
             })
+
 
 threading.Thread(target=recv_loop, daemon=True).start()
 
@@ -125,7 +152,7 @@ while True:
 
         elif cmd.startswith("history"):
             parts = cmd.split()
-            if len(parts) == 1:
+            if len(parts) < 2:
                 print("[i] specify peer_id")
                 continue
 

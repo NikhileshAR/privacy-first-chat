@@ -12,15 +12,20 @@ def _path(peer):
 def save(peer, entry):
     msgs = []
     if os.path.exists(_path(peer)):
-        msgs = json.load(open(_path(peer)))
+        with open(_path(peer), "r") as f:
+            msgs = json.load(f)
+
     msgs.append(entry)
-    json.dump(msgs, open(_path(peer), "w"))
+
+    with open(_path(peer), "w") as f:
+        json.dump(msgs, f)
 
 
 def load(peer=None):
     out = []
-    for f in os.listdir(HIST_DIR):
-        if peer and not f.startswith(peer):
+    for fname in os.listdir(HIST_DIR):
+        if peer and not fname.startswith(peer):
             continue
-        out += json.load(open(os.path.join(HIST_DIR, f)))
+        with open(os.path.join(HIST_DIR, fname), "r") as f:
+            out.extend(json.load(f))
     return out

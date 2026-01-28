@@ -1,15 +1,15 @@
 import socket
 import json
 
-HOST = "0.0.0.0"
+HOST = "::"
 PORT = 9999
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
 sock.bind((HOST, PORT))
 
 clients = {}  # peer_id -> address
 
-print(f"[+] server running on {HOST}:{PORT}")
+print(f"[+] server running on {HOST} : {PORT}")
 
 while True:
     data, addr = sock.recvfrom(65536)

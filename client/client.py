@@ -18,8 +18,9 @@ SERVER_HOST = "127.0.0.1"
 SERVER_PORT = 9999
 
 if len(sys.argv) == 3:
-    SERVER_HOST = sys.argv[1]
+    SERVER_HOST = sys.argv[1].strip("[]")  
     SERVER_PORT = int(sys.argv[2])
+
 
 
 # ---- identity ----

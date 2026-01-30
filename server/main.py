@@ -7,7 +7,7 @@ PORT = 9999
 sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
 sock.bind((HOST, PORT))
 
-clients = {} 
+clients = {}  # peer_id -> address
 
 print(f"[+] server running on {HOST} : {PORT}")
 
@@ -28,4 +28,3 @@ while True:
     target = pkt.get("to")
     if target and target in clients:
         sock.sendto(data, clients[target])
-

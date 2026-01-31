@@ -35,7 +35,7 @@ except ValueError:
 
 if ip and ip.version == 6:
     sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
-    sock.bind(("::", 0))
+    sock.bind((SERVER_HOST, 0))
     SERVER = (SERVER_HOST, SERVER_PORT, 0, 0)
 else:
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

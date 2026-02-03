@@ -1,6 +1,4 @@
 import ipaddress
-
-
 import socket
 import json
 import threading
@@ -14,40 +12,43 @@ from crypto import gen_keypair, derive_session, encrypt, decrypt
 BUFFER = 65536
 
 # ---- server config (CLI) ----
-SERVER_HOST = "127.0.0.1"
+SERVER_HOST = "::1"   # MUST be a real IPv6 address (not ::)
 SERVER_PORT = 9999
 
 if len(sys.argv) == 3:
-    SERVER_HOST = sys.argv[1].strip("[]")  
+    SERVER_HOST = sys.argv[1].strip("[]")
     SERVER_PORT = int(sys.argv[2])
 
+# ---- hard IPv6 guard ----
+if SERVER_HOST == "::":
+    raise ValueError("SERVER_HOST cannot be '::' (unspecified IPv6 address)")
 
+try:
+    ip = ipaddress.ip_address(SERVER_HOST)
+except ValueError:
+    raise ValueError("Invalid IPv6 address")
+
+if ip.version != 6:
+    raise ValueError("IPv6 ONLY — IPv4 is not allowed")
 
 # ---- identity ----
 peer_id = uuid.uuid4().hex[:12]
 priv, pub = gen_keypair()
 
-# ---- socket ----
-try:
-    ip = ipaddress.ip_address(SERVER_HOST)
-except ValueError:
-    ip = None
+# ---- IPv6 UDP socket (Windows-safe) ----
+sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
 
-if ip and ip.version == 6:
-    sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
-    sock.bind(("::", 0))
-    SERVER = (SERVER_HOST, SERVER_PORT, 0, 0)
-else:
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(("0.0.0.0", 0))
-    SERVER = (SERVER_HOST, SERVER_PORT)
+# force pure IPv6 (no v4-mapped)
+sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
 
+# bind locally
+sock.bind(("::", 0, 0, 0))
 
-
+# IMPORTANT: connect() fixes WinError 10051 on Windows
+sock.connect((SERVER_HOST, SERVER_PORT, 0, 0))
 
 def send_pkt(pkt):
-    sock.sendto(json.dumps(pkt).encode(), SERVER)
-
+    sock.send(json.dumps(pkt).encode())
 
 # ---- register (implicit) ----
 send_pkt({
@@ -62,10 +63,9 @@ handshaking = set()
 chat_history = defaultdict(list)
 lock = threading.Lock()
 
-print(f"[+] connected to server {SERVER[0]}:{SERVER[1]}")
+print(f"[+] connected to server [{SERVER_HOST}]:{SERVER_PORT}")
 print(f"[+] your peer_id: {peer_id}")
 print('commands: send PEER_ID "msg", history PEER_ID, exit')
-
 
 def start_handshake(pid):
     if pid in handshaking:
@@ -77,7 +77,6 @@ def start_handshake(pid):
         "to": pid,
         "pub": pub.hex()
     })
-
 
 def send_message(pid, msg):
     with lock:
@@ -100,11 +99,10 @@ def send_message(pid, msg):
             start_handshake(pid)
             print("[i] establishing session and sending…")
 
-
 def recv_loop():
     while True:
         try:
-            data, _ = sock.recvfrom(BUFFER)
+            data = sock.recv(BUFFER)
         except Exception:
             continue
 
@@ -115,7 +113,6 @@ def recv_loop():
 
         t = pkt.get("type")
         sender = pkt.get("from")
-
         if not sender:
             continue
 
@@ -148,7 +145,10 @@ def recv_loop():
             with lock:
                 if sender not in sessions:
                     continue
-                msg = decrypt(sessions[sender], bytes.fromhex(pkt["blob"]))
+                msg = decrypt(
+                    sessions[sender],
+                    bytes.fromhex(pkt["blob"])
+                )
 
             print(f"\n[{sender} → you] {msg}")
             chat_history[sender].append({
@@ -156,7 +156,6 @@ def recv_loop():
                 "dir": "in",
                 "msg": msg
             })
-
 
 threading.Thread(target=recv_loop, daemon=True).start()
 
